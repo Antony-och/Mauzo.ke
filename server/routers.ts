@@ -1,10 +1,10 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import { getUserByOpenId } from "./db";
-import { businesses, branches, memberships, businessModules, products, categories, inventoryLevels, stockMovements, orders, orderItems, payments, auditEvents } from "../drizzle/schema";
+import { users, businesses, branches, memberships, businessModules, products, categories, inventoryLevels, stockMovements, orders, orderItems, payments, auditEvents } from "../drizzle/schema";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { canReadOrders, canTransitionOrder } from "./workspacePermissions";
@@ -163,6 +163,55 @@ export const appRouter = router({
       if (!canTransitionOrder(membership.role, row.status, input.status)) throw new TRPCError({ code: "FORBIDDEN", message: "That order status transition is not allowed for your role." });
       await db.update(orders).set({ status: input.status }).where(and(eq(orders.businessId, business.id), eq(orders.id, input.orderId)));
       await db.insert(auditEvents).values({ businessId: business.id, actorUserId: user.id, action: `order.${input.status}`, entityType: "order", entityId: input.orderId });
+      return { success: true };
+    }),
+  }),
+  platform: router({
+    overview: adminProcedure.query(async () => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable" });
+      const [businessCount, activeBusinessCount, userCount, orderStats, recentBusinesses, recentAudit] = await Promise.all([
+        db.select({ count: sql<number>`count(*)` }).from(businesses),
+        db.select({ count: sql<number>`count(*)` }).from(businesses).where(eq(businesses.status, "active")),
+        db.select({ count: sql<number>`count(*)` }).from(users),
+        db.select({ count: sql<number>`count(*)`, revenue: sql<string>`coalesce(sum(case when ${orders.status} = 'completed' then ${orders.total} else 0 end), 0)` }).from(orders),
+        db.select().from(businesses).orderBy(desc(businesses.createdAt)).limit(6),
+        db.select({ event: auditEvents, actorName: users.name, actorEmail: users.email }).from(auditEvents).leftJoin(users, eq(auditEvents.actorUserId, users.id)).orderBy(desc(auditEvents.createdAt)).limit(8),
+      ]);
+      return { stats: { businesses: Number(businessCount[0]?.count ?? 0), activeBusinesses: Number(activeBusinessCount[0]?.count ?? 0), users: Number(userCount[0]?.count ?? 0), grossSales: String(orderStats[0]?.revenue ?? "0"), orders: Number(orderStats[0]?.count ?? 0) }, recentBusinesses, recentAudit };
+    }),
+    businesses: adminProcedure.input(z.object({ search: z.string().trim().max(100).optional(), status: z.enum(["all", "active", "suspended"]).default("all") })).query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable" });
+      const filters = [];
+      if (input.status !== "all") filters.push(eq(businesses.status, input.status));
+      if (input.search) filters.push(sql`(${businesses.name} like ${`%${input.search}%`} or ${businesses.industry} like ${`%${input.search}%`})`);
+      const rows = await db.select().from(businesses).where(filters.length ? and(...filters) : undefined).orderBy(desc(businesses.createdAt)).limit(250);
+      const memberCounts = await db.select({ businessId: memberships.businessId, count: sql<number>`count(*)` }).from(memberships).groupBy(memberships.businessId);
+      const counts = new Map(memberCounts.map(row => [row.businessId, Number(row.count)]));
+      return rows.map(business => ({ ...business, memberCount: counts.get(business.id) ?? 0 }));
+    }),
+    users: adminProcedure.input(z.object({ search: z.string().trim().max(100).optional() })).query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable" });
+      const rows = await db.select().from(users).where(input.search ? sql`(${users.name} like ${`%${input.search}%`} or ${users.email} like ${`%${input.search}%`})` : undefined).orderBy(desc(users.lastSignedIn)).limit(250);
+      const memberCounts = await db.select({ userId: memberships.userId, count: sql<number>`count(*)` }).from(memberships).groupBy(memberships.userId);
+      const counts = new Map(memberCounts.map(row => [row.userId, Number(row.count)]));
+      return rows.map(user => ({ id: user.id, name: user.name, email: user.email, role: user.role, createdAt: user.createdAt, lastSignedIn: user.lastSignedIn, membershipCount: counts.get(user.id) ?? 0 }));
+    }),
+    audit: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(50) })).query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable" });
+      return db.select({ event: auditEvents, actorName: users.name, actorEmail: users.email }).from(auditEvents).leftJoin(users, eq(auditEvents.actorUserId, users.id)).orderBy(desc(auditEvents.createdAt)).limit(input.limit);
+    }),
+    setBusinessStatus: adminProcedure.input(z.object({ businessId: z.number().int().positive(), status: z.enum(["active", "suspended"]) })).mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable" });
+      const [business] = await db.select().from(businesses).where(eq(businesses.id, input.businessId)).limit(1);
+      if (!business) throw new TRPCError({ code: "NOT_FOUND", message: "Business not found" });
+      await db.update(businesses).set({ status: input.status }).where(eq(businesses.id, input.businessId));
+      const actor = await getUserByOpenId(ctx.user.openId);
+      if (actor) await db.insert(auditEvents).values({ businessId: input.businessId, actorUserId: actor.id, action: `business.${input.status}`, entityType: "business", entityId: input.businessId });
       return { success: true };
     }),
   }),

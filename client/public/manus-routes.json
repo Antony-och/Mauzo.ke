@@ -1,1 +1,1 @@
-{"routes":[{"path":"/","title":"Mauzo — Business operating platform"},{"path":"/app","title":"Mauzo workspace"}]}
+{"routes":[{"path":"/","title":"Mauzo — Business operating platform"},{"path":"/app","title":"Mauzo workspace"},{"path":"/admin","title":"Super Admin dashboard"},{"path":"/admin/businesses","title":"Business management"},{"path":"/admin/users","title":"User management"},{"path":"/admin/audit","title":"Audit log"}]}
