@@ -1,4 +1,4 @@
-# TillFlow — Universal SaaS POS
+# Mauzo — Universal SaaS POS
 
 React / Express / tRPC / Drizzle starter, adapted from the Sandbox web-db-user template.
 

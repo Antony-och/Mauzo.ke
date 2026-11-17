@@ -1,8 +1,8 @@
-# TillFlow — Architecture & Implementation Plan
+# Mauzo — Architecture & Implementation Plan
 
 ## Product and scope
 
-TillFlow is a configurable, multi-tenant point-of-sale SaaS for food service, grocery, retail, pharmacy, electronics, and other shop operations. It will support platform administration and five business roles: Super Admin, Shop Owner, Cashier, Kitchen Manager, and Store Manager. A business selects its industry at onboarding; industry defaults choose enabled modules and recommended workflows, while business owners can configure available modules. The common platform should provide the core business records and workflows rather than pretending that each industry has a separate application.
+Mauzo is a configurable, multi-tenant point-of-sale SaaS for food service, grocery, retail, pharmacy, electronics, and other shop operations. It will support platform administration and five business roles: Super Admin, Shop Owner, Cashier, Kitchen Manager, and Store Manager. A business selects its industry at onboarding; industry defaults choose enabled modules and recommended workflows, while business owners can configure available modules. The common platform should provide the core business records and workflows rather than pretending that each industry has a separate application.
 
 ## Stack and serving
 
@@ -47,17 +47,21 @@ Three candidate directions (sampled low-probability alternatives):
 - **Night Market — dark high-energy POS:** charcoal base, vivid citrus accents, dense neon transaction cues. Probability: 0.071.
 - **Warm Counter — hospitality editorial:** cream paper, terracotta details, serif display typography, softer forms. Probability: 0.026.
 
-Chosen direction: **Ledger & Lime**, borrowing the calm precision of contemporary financial operations software while keeping checkout fast and obvious.
+Chosen direction: **Mauzo — warm editorial commerce**. A calm light workspace for day-to-day operations and a confident, public-facing marketing site that pairs the supplied horizontal logo with the signature orange.
 
-- **Design Movement:** contemporary Swiss editorial utility, adapted for a high-throughput retail operations console.
+- **Design Movement:** contemporary Swiss editorial utility for high-throughput retail, balanced with warm independent-commerce character.
 - **Core Principles:** legible at a glance; action-first hierarchy; restrained color with meaningful status signals; consistent interaction patterns across industries.
-- **Color Philosophy:** warm near-white and quiet stone create a neutral work surface; deep evergreen signals TillFlow's trusted operating layer; amber/red are reserved for attention and risk, not decoration.
-- **Layout Paradigm:** persistent narrow navigation rail, contextual top bar, broad work canvas, and right-side contextual panels for checkout/order detail; POS expands into a focused selling surface rather than a generic admin grid.
-- **Signature Elements:** an evergreen transaction rail; compact status pills with clear text and shape; crisp table separators and prominent numeric totals.
+- **Color Philosophy:** warm near-white and stone surfaces keep the operational workspace easy to scan; Mauzo orange **#E67E22** anchors the brand, primary actions and active navigation; semantic status colors remain distinct.
+- **Layout Paradigm:** persistent narrow navigation rail, contextual top bar, broad work canvas, and right-side contextual panels for checkout/order detail; the public homepage uses an editorial hero and sequential product storytelling.
+- **Signature Elements:** the supplied horizontal Mauzo logo, a clear orange transaction accent, and fine-line, ledger-inspired dividers with status pills.
 - **Interaction Philosophy:** keyboard-friendly, forgiving forms, clear confirmation for irreversible actions, optimistic visual feedback only after server success for financial/stock changes.
 - **Animation:** subtle 140–200 ms transitions for drawers and state changes; no distracting motion in the checkout loop; reduced-motion preference honored.
-- **Typography System:** Inter for interface/body and tabular numerals for money/counts; restrained weight hierarchy, strong numeric totals, compact but readable labels.
+- **Typography System:** Inter for interface/body and tabular numerals for money/counts; restrained weight hierarchy, strong numeric totals, compact but readable labels; editorial serif headlines on the public homepage.
 - **Brand Essence:** the dependable operating layer for independent and multi-branch commerce; **clear, capable, adaptable**.
 - **Brand Voice:** direct, calm, operational. Example: “Your counter, in sync.” “Stock is low at Riverside — review before the next sale.”
-- **Wordmark & Logo:** custom wordmark paired with a compact TillFlow mark made from two offset receipt/flow strokes forming a T; use evergreen as the recognizable signature.
-- **Signature Brand Color:** TillFlow Evergreen, a deep balanced green used for primary actions and active navigation.
+- **Wordmark & Logo:** use the user-supplied horizontal Mauzo logo unchanged; pair with the brand name only where the asset is not already sufficient.
+- **Signature Brand Color:** Mauzo Orange, **#E67E22**.
+
+## Brand update (approved 2026-11-17)
+
+The public website is named **Mauzo**. Its signature brand color is **#E67E22**. Use the supplied horizontal Mauzo logo (`client/public/mauzo-horizontal.png`) unchanged. The public marketing homepage is `/`; the authenticated operational workspace remains at `/app`. This approved direction supersedes the earlier working brand identity and evergreen accent.
