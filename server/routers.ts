@@ -191,6 +191,20 @@ export const appRouter = router({
       const counts = new Map(memberCounts.map(row => [row.businessId, Number(row.count)]));
       return rows.map(business => ({ ...business, memberCount: counts.get(business.id) ?? 0 }));
     }),
+    businessDetail: adminProcedure.input(z.object({ businessId: z.number().int().positive() })).query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable" });
+      const [business] = await db.select().from(businesses).where(eq(businesses.id, input.businessId)).limit(1);
+      if (!business) throw new TRPCError({ code: "NOT_FOUND", message: "Business not found" });
+      const [branchRows, moduleRows, memberRows, productCount, orderStats] = await Promise.all([
+        db.select().from(branches).where(eq(branches.businessId, business.id)).orderBy(desc(branches.createdAt)),
+        db.select().from(businessModules).where(eq(businessModules.businessId, business.id)).orderBy(businessModules.moduleKey),
+        db.select({ membership: memberships, user: users }).from(memberships).innerJoin(users, eq(memberships.userId, users.id)).where(eq(memberships.businessId, business.id)).orderBy(desc(memberships.createdAt)),
+        db.select({ count: sql<number>`count(*)` }).from(products).where(and(eq(products.businessId, business.id), eq(products.active, true))),
+        db.select({ count: sql<number>`count(*)`, revenue: sql<string>`coalesce(sum(case when ${orders.status} = 'completed' then ${orders.total} else 0 end), 0)` }).from(orders).where(eq(orders.businessId, business.id)),
+      ]);
+      return { business, branches: branchRows, modules: moduleRows, members: memberRows, productCount: Number(productCount[0]?.count ?? 0), orders: Number(orderStats[0]?.count ?? 0), revenue: String(orderStats[0]?.revenue ?? "0") };
+    }),
     users: adminProcedure.input(z.object({ search: z.string().trim().max(100).optional() })).query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable" });
@@ -203,6 +217,29 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable" });
       return db.select({ event: auditEvents, actorName: users.name, actorEmail: users.email }).from(auditEvents).leftJoin(users, eq(auditEvents.actorUserId, users.id)).orderBy(desc(auditEvents.createdAt)).limit(input.limit);
+    }),
+    setUserRole: adminProcedure.input(z.object({ userId: z.number().int().positive(), role: z.enum(["user", "admin"]) })).mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable" });
+      const actor = await getUserByOpenId(ctx.user.openId);
+      if (!actor || actor.id === input.userId && input.role !== "admin") throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot remove your own Super Admin access." });
+      const [target] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      await db.update(users).set({ role: input.role }).where(eq(users.id, input.userId));
+      await db.insert(auditEvents).values({ businessId: null, actorUserId: actor.id, action: `user.role.${input.role}`, entityType: "user", entityId: input.userId });
+      return { success: true };
+    }),
+    setBusinessModule: adminProcedure.input(z.object({ businessId: z.number().int().positive(), moduleKey: z.string().trim().min(1).max(64), enabled: z.boolean() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable" });
+      const [business] = await db.select().from(businesses).where(eq(businesses.id, input.businessId)).limit(1);
+      if (!business) throw new TRPCError({ code: "NOT_FOUND", message: "Business not found" });
+      const [module] = await db.select().from(businessModules).where(and(eq(businessModules.businessId, input.businessId), eq(businessModules.moduleKey, input.moduleKey))).limit(1);
+      if (module) await db.update(businessModules).set({ enabled: input.enabled }).where(eq(businessModules.id, module.id));
+      else await db.insert(businessModules).values({ businessId: input.businessId, moduleKey: input.moduleKey, enabled: input.enabled });
+      const actor = await getUserByOpenId(ctx.user.openId);
+      if (actor) await db.insert(auditEvents).values({ businessId: input.businessId, actorUserId: actor.id, action: `module.${input.enabled ? "enabled" : "disabled"}`, entityType: "module", entityId: input.businessId });
+      return { success: true };
     }),
     setBusinessStatus: adminProcedure.input(z.object({ businessId: z.number().int().positive(), status: z.enum(["active", "suspended"]) })).mutation(async ({ ctx, input }) => {
       const db = await getDb();

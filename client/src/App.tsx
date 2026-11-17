@@ -14,6 +14,7 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/app" component={Home} />
       <Route path="/admin" component={Admin} />
+      <Route path="/admin/businesses/:id" component={Admin} />
       <Route path="/admin/:section" component={Admin} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
